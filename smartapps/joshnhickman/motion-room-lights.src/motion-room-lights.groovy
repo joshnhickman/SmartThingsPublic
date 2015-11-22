@@ -67,7 +67,7 @@ def roomMotionHandler(evt) {
         enterRoom()
     } else if (evt.value == "inactive") {
     	log.debug "motion inactive in room"
-    	if (hall.currentState("motion").value == "active" || evt.date.time - state.lastHallMotionActive <= 1000 * seconds) {
+    	if (evt.date.time - state.lastHallMotionActive <= 1000 * seconds) {
         	log.debug "motion active in hall within $seconds seconds; lights off"
             exitRoom()
         } else {
@@ -104,7 +104,6 @@ def enterRoom() {
 }
 
 def turnOnLights() {
-	log.debug now() - getSunriseAndSunset().sunrise.time 
     if (now() - getSunriseAndSunset().sunrise.time < 0 || now() - getSunriseAndSunset().sunset.time > 0) {
         log.debug "sun is down; set color to dim red"
         lights*.setColor([hue: 100, saturation: 100, level: 40])
