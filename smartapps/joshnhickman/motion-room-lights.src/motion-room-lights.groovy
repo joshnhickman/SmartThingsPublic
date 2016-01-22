@@ -17,7 +17,7 @@ definition(
     name: "Motion Room Lights",
     namespace: "joshnhickman",
     author: "Josh Hickman",
-    description: "Intelligently turns on and off room lights based on motion sensors in the room and the hallway leading to the room.",
+    description: "Intelligently turns on and off room lights based on motion sensor in the room.",
     category: "Convenience",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
@@ -25,17 +25,13 @@ definition(
 
 preferences {
 	section("Control which light(s)?") {
-    	input "lights", "capability.switch", required: true, multiple: true, title: "light(s)"
+    	input "lights", "capability.switchLevel", required: true, multiple: true, title: "light(s)"
     }
-    section("Using which motion sensors?") {
+    section("Using which motion sensor?") {
     	input "room", "capability.motionSensor", required: true, title: "room"
-        input "hall", "capability.motionSensor", required: true, title: "hall"
     }
-    section("With up to how many seconds between motion events?") {
-    	input "seconds", "number", required: true, default: 10, title: "seconds"
-    }
-    section("Force off after how many minutes of no motion?") {
-    	input "minutes", "number", required: true, default: 10, title: "minutes"
+    section("Turn off after how many minutes of no motion?") {
+    	input "minutes", "number", required: true, default: 2, title: "minutes"
     }
 }
 
@@ -51,76 +47,38 @@ def updated() {
 }
 
 def initialize() {
-    subscribe(hall, "motion.active", hallMotionHandler)
 	subscribe(room, "motion", roomMotionHandler)
-}
-
-def hallMotionHandler(evt) {
-	log.debug "hallMotionHandler called: $evt"
-    state.lastHallMotionActive = evt.date.time
+    subscribe(lights, "level", roomLightHandler)
 }
 
 def roomMotionHandler(evt) {
-	log.debug "roomMotionHandler called: $evt"
     if (evt.value == "active") {
-    	log.debug "motion active in room"
-        enterRoom()
-    } else if (evt.value == "inactive") {
-    	log.debug "motion inactive in room"
-    	if (hall.currentState("motion").value == "active" || evt.date.time - state.lastHallMotionActive <= 1000 * seconds) {
-        	log.debug "motion active in hall within $seconds seconds; lights off"
-            exitRoom()
-        } else {
-        	log.debug "motion inactive in hall; begin $minutes minute off timer"
-        	runIn(60 * minutes, checkRoomMotion)
+        if (!state.lightsOn) {
+        	lightsOn()
+        }
+    } else {
+    	if (!state.physical) {
+            runIn(60 * minutes, lightsOff())
         }
     }
 }
 
-def checkRoomMotion() {
-	log.debug "checkRoomMotion called"
-    def roomState = room.currentState("motion")
-    if (roomState.value == "inactive") {
-        if (now() - roomState.date.time >= 1000 * 60 * minutes) {
-        	log.debug "no motion within $minutes minutes"
-        	exitRoom()
-        } else {
-        	log.debug "motion within $minutes minutes; leaving lights"
-        }
-    } else {
-    	log.debug "motion active in room; leaving lights"
+def roomLightHandler(evt) {
+	log.debug "roomLightHandler called: $evt"
+    state.lightsOn = evt.doubleValue > 0
+    state.physical = evt.isPhysical()
+    if (state.physical) {
+	    unschedule()
+    }
+    if (!state.lightsOn) {
+    	state.physical = false
     }
 }
 
-def enterRoom() {
-	unschedule()
-	if (!state.occupied) {
-    	log.debug "not already occupied; lights on"
-		state.occupied = true
-        turnOnLights()
-    } else {
-    	log.debug "already occupied; leaving lights"
-    }
+def lightsOn() {
+	lights*.setLevel(30)
 }
 
-def turnOnLights() {
-    if (now() - getSunriseAndSunset().sunrise.time < 0 || now() - getSunriseAndSunset().sunset.time > 0) {
-        log.debug "sun is down; set color to dim red"
-        lights*.setColor([hue: 100, saturation: 100, level: 40])
-        lights*.on()
-    } else {
-        log.debug "sun is up; set color to sunlight"
-        lights*.setColor([hue: 53, saturation: 91, level: 100])
-        lights*.on()
-    }
-}
-
-def exitRoom() {
-	if (state.occupied) {
-    	log.debug "previously occupied; lights off"
-		state.occupied = false
-    	lights*.off()
-    } else {
-    	log.debug "not previously occupied; leaving lights"
-    }
+def lightsOff() {
+	lights*.setLevel(0)
 }
