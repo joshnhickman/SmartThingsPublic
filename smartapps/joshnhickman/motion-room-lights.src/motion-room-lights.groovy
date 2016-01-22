@@ -51,7 +51,7 @@ def updated() {
 }
 
 def initialize() {
-    subscribe(hall, "motion", hallMotionHandler)
+    subscribe(hall, "motion.active", hallMotionHandler)
 	subscribe(room, "motion", roomMotionHandler)
 }
 
@@ -67,7 +67,7 @@ def roomMotionHandler(evt) {
         enterRoom()
     } else if (evt.value == "inactive") {
     	log.debug "motion inactive in room"
-    	if (evt.date.time - state.lastHallMotionActive <= 1000 * seconds) {
+    	if (hall.currentState("motion").value == "active" || evt.date.time - state.lastHallMotionActive <= 1000 * seconds) {
         	log.debug "motion active in hall within $seconds seconds; lights off"
             exitRoom()
         } else {
