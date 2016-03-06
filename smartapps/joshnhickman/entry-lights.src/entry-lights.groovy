@@ -23,7 +23,6 @@ definition(
     iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
 
-
 preferences {
 	section("Control which light(s)?") {
 		input "lights", "capability.switchLevel", required: true, multiple: true, title: "light(s)"
@@ -42,6 +41,7 @@ preferences {
 def installed() {
 	log.debug "Installed with settings: ${settings}"
 	initialize()
+    state.automatic = false
 }
 
 def updated() {
@@ -51,28 +51,41 @@ def updated() {
 }
 
 def initialize() {
-	subscribe(door, "contact", doorOpenHandler)
+	subscribe(door, "contact", doorContactHandler)
+    subscribe(hall, "motion", hallMotionHandler)
+    subscribe(lights, "switch", lightSwitchHandler)
 }
 
-def doorOpenHandler(evt) {
-	if("open" == evt.value) {
-    	log.debug "Door opened"
+def doorContactHandler(evt) {
+	if ("open" == evt.value) {
         def hallState = hall.currentState("motion")
         if (hallState.value == "inactive") {
         	lightsOn()
-            runIn(60 * minutes, lightsOff)
         }
-    } else if ("closed" == evt.value) {
-    	log.debug "Door closed"
+    }
+}
+
+def hallMotionHandler(evt) {
+	if (state.automatic && evt.value == "inactive") {
+    	runIn(60 * minutes, lightsOff)
+    } else if (evt.value == "active") {
+    	unschedule()
+    }
+}
+
+def lightSwitchHandler(evt) {
+	if (evt.isPhysical()) {
+    	unschedule()
+        state.automatic = false
     }
 }
 
 def lightsOn() {
-    lights*.setLevel(30)
+	state.automatic = true
+    lights*.setLevel(20)
 }
 
 def lightsOff() {
+	state.automatic = false
 	lights*.setLevel(0)
 }
-
-// TODO: implement event handlers
