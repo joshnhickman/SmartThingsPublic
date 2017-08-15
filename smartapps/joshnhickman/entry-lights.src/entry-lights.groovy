@@ -54,7 +54,6 @@ def updated() {
 
 def initialize() {
   state.arriving = false
-  state.pending = false
   subscribe(contact, "contact.open", contactOpenHandler)
   subscribe(motion, "motion", motionHandler)
 }
@@ -64,7 +63,6 @@ def contactOpenHandler(evt) {
   if ("inactive" == motion.currentState("motion").value && !lights.currentState("switch").value.contains("on")) {
     state.arriving = true
     lights*.setLevel(level)
-    state.pending = true
     runIn(60 * 30, lightsOff)
   }
 }
@@ -72,18 +70,16 @@ def contactOpenHandler(evt) {
 def motionHandler(evt) {
   if (state.arriving) {
     if ("inactive" == evt.value) {
-      state.pending = true
       runIn(60 * minutes, lightsOff)
     } else {
-      state.pending = false
+      unschedule()
     }
   }
 }
 
 def lightsOff() {
-  if (state.pending && state.arriving) {
+  if (state.arriving) {
     lights*.setLevel(0)
-    state.pending = false
     state.arriving = false
   }
 }
